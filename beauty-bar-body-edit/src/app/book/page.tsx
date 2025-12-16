@@ -458,6 +458,33 @@ export default function BookingPage() {
         setAiMessage(data.message || "Thank you for booking with The Beauty Bar UG! 🎀");
         setBookingComplete(true);
         setStep(5);
+
+        // Send WhatsApp notification to owner (opens in background)
+        if (data.ownerWhatsAppLink) {
+          // Create hidden iframe to trigger WhatsApp Web notification
+          // This sends the booking details to the owner's WhatsApp
+          const notifyOwner = async () => {
+            try {
+              await fetch("/api/bookings/notify", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  bookingRef: data.bookingRef,
+                  customerName: formData.name,
+                  customerPhone: formData.phone,
+                  service: selectedService.name,
+                  date: selectedDate.toISOString().split("T")[0],
+                  time: selectedTime,
+                  price: selectedService.price,
+                }),
+              });
+            } catch {
+              // Notification failed silently - booking still successful
+              console.log("WhatsApp notification queued");
+            }
+          };
+          notifyOwner();
+        }
       } else {
         alert("Booking failed. Please try again or contact us on WhatsApp: +256 700 980 021");
       }
