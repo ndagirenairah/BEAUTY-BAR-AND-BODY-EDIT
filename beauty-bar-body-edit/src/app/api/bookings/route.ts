@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { kv } from "@vercel/kv";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TYPES
@@ -34,15 +35,71 @@ type Booking = {
   date: string;
   time: string;
   notes?: string;
-  status: "confirmed" | "cancelled";
+  status: "confirmed" | "cancelled" | "completed";
   createdAt: string;
   cancelledAt?: string;
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// IN-MEMORY STORAGE (Use database in production)
+// PERSISTENT STORAGE WITH VERCEL KV
 // ─────────────────────────────────────────────────────────────────────────────
-const bookings: Booking[] = [];
+const BOOKINGS_KEY = "beautybar_bookings";
+
+// Get all bookings from KV storage
+async function getBookings(): Promise<Booking[]> {
+  try {
+    const bookings = await kv.get<Booking[]>(BOOKINGS_KEY);
+    return bookings || [];
+  } catch (error) {
+    console.log("⚠️ KV not configured, using memory:", error);
+    return [];
+  }
+}
+
+// Save booking to KV storage
+async function saveBooking(booking: Booking): Promise<void> {
+  try {
+    const bookings = await getBookings();
+    bookings.push(booking);
+    await kv.set(BOOKINGS_KEY, bookings);
+    console.log("✅ Booking saved to KV storage");
+  } catch (error) {
+    console.log("⚠️ KV save failed:", error);
+  }
+}
+
+// Update booking in KV storage
+async function updateBooking(bookingId: string, updates: Partial<Booking>): Promise<Booking | null> {
+  try {
+    const bookings = await getBookings();
+    const index = bookings.findIndex(b => b.id === bookingId);
+    if (index !== -1) {
+      bookings[index] = { ...bookings[index], ...updates };
+      await kv.set(BOOKINGS_KEY, bookings);
+      return bookings[index];
+    }
+    return null;
+  } catch (error) {
+    console.log("⚠️ KV update failed:", error);
+    return null;
+  }
+}
+
+// Delete booking from KV storage
+async function deleteBooking(bookingId: string): Promise<boolean> {
+  try {
+    const bookings = await getBookings();
+    const filtered = bookings.filter(b => b.id !== bookingId);
+    if (filtered.length !== bookings.length) {
+      await kv.set(BOOKINGS_KEY, filtered);
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.log("⚠️ KV delete failed:", error);
+    return false;
+  }
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // BEAUTY BAR CONTACT INFO
@@ -239,7 +296,9 @@ export async function POST(request: NextRequest) {
       status: "confirmed",
       createdAt: new Date().toISOString(),
     };
-    bookings.push(booking);
+    
+    // Save to persistent storage (Vercel KV)
+    await saveBooking(booking);
 
     // ─────────────────────────────────────────────────────────────────────────
     // NOTIFY OWNER (Beauty Bar)
@@ -472,6 +531,9 @@ export async function GET(request: NextRequest) {
   const phone = searchParams.get("phone");
   const adminKey = searchParams.get("key");
 
+  // Get all bookings from persistent storage
+  const bookings = await getBookings();
+
   // ─────────────────────────────────────────────────────────────────────────
   // CANCEL BOOKING
   // ─────────────────────────────────────────────────────────────────────────
@@ -495,8 +557,10 @@ export async function GET(request: NextRequest) {
     }
 
     // Cancel the booking
-    booking.status = "cancelled";
-    booking.cancelledAt = new Date().toISOString();
+    await updateBooking(bookingId, {
+      status: "cancelled",
+      cancelledAt: new Date().toISOString()
+    });
 
     // Notify owner about cancellation
     const cancellationMessage = `
@@ -564,10 +628,12 @@ export async function GET(request: NextRequest) {
   // ADMIN: VIEW ALL BOOKINGS
   // ─────────────────────────────────────────────────────────────────────────
   if (adminKey === process.env.ADMIN_KEY || adminKey === "admin_beautybar_2025") {
+    const completed = bookings.filter((b) => b.status === "completed").length;
     return NextResponse.json({
       total: bookings.length,
       confirmed: bookings.filter((b) => b.status === "confirmed").length,
       cancelled: bookings.filter((b) => b.status === "cancelled").length,
+      completed,
       bookings: bookings.slice().reverse(),
     });
   }
@@ -579,12 +645,52 @@ export async function GET(request: NextRequest) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// DELETE - CANCEL BOOKING (Alternative method)
+// PATCH - ADMIN UPDATE BOOKING STATUS
+// ─────────────────────────────────────────────────────────────────────────────
+export async function PATCH(request: NextRequest) {
+  try {
+    const { id, status, key } = await request.json();
+
+    // Verify admin key
+    if (key !== process.env.ADMIN_KEY && key !== "admin_beautybar_2025") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    if (!id || !status) {
+      return NextResponse.json({ error: "Missing id or status" }, { status: 400 });
+    }
+
+    const updated = await updateBooking(id, { status });
+    
+    if (updated) {
+      return NextResponse.json({ success: true, booking: updated });
+    } else {
+      return NextResponse.json({ error: "Booking not found" }, { status: 404 });
+    }
+  } catch (error) {
+    console.error("PATCH error:", error);
+    return NextResponse.json({ error: "Failed to update" }, { status: 500 });
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DELETE - ADMIN DELETE BOOKING OR CUSTOMER CANCEL
 // ─────────────────────────────────────────────────────────────────────────────
 export async function DELETE(request: NextRequest) {
   try {
-    const { bookingId, phone } = await request.json();
+    const { bookingId, phone, key } = await request.json();
 
+    // Admin delete (permanent)
+    if (key === process.env.ADMIN_KEY || key === "admin_beautybar_2025") {
+      const deleted = await deleteBooking(bookingId);
+      if (deleted) {
+        return NextResponse.json({ success: true, message: "Booking deleted permanently" });
+      } else {
+        return NextResponse.json({ error: "Booking not found" }, { status: 404 });
+      }
+    }
+
+    // Customer cancel (requires phone verification)
     if (!bookingId || !phone) {
       return NextResponse.json(
         { error: "Please provide booking ID and phone number" },
@@ -592,6 +698,7 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
+    const bookings = await getBookings();
     const booking = bookings.find(
       (b) => b.id === bookingId && b.phone.replace(/[^0-9]/g, "") === phone.replace(/[^0-9]/g, "")
     );
@@ -603,8 +710,11 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    booking.status = "cancelled";
-    booking.cancelledAt = new Date().toISOString();
+    // Update booking status to cancelled
+    await updateBooking(bookingId, {
+      status: "cancelled",
+      cancelledAt: new Date().toISOString()
+    });
 
     // Notify owner
     console.log(`❌ Booking ${bookingId} cancelled by customer ${booking.name}`);
