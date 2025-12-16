@@ -76,11 +76,57 @@ function createWhatsAppLink(phone: string, message: string): string {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// SEND EMAIL VIA RESEND (Free tier - 100 emails/day)
+// ─────────────────────────────────────────────────────────────────────────────
+async function sendEmailViaResend(to: string, subject: string, html: string): Promise<boolean> {
+  const resendApiKey = process.env.RESEND_API_KEY;
+  
+  if (!resendApiKey) {
+    console.log("⚠️ RESEND_API_KEY not configured - skipping email");
+    return false;
+  }
+
+  try {
+    const response = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${resendApiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from: "Beauty Bar UG <onboarding@resend.dev>",
+        to: [to],
+        subject: subject,
+        html: html,
+      }),
+    });
+
+    if (response.ok) {
+      console.log(`✅ Email sent to ${to} via Resend`);
+      return true;
+    } else {
+      const error = await response.text();
+      console.log("⚠️ Resend email failed:", error);
+      return false;
+    }
+  } catch (error) {
+    console.log("⚠️ Email failed:", error);
+    return false;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // SEND EMAIL (if configured)
 // ─────────────────────────────────────────────────────────────────────────────
 async function sendEmail(to: string, subject: string, text: string, html?: string): Promise<boolean> {
+  // First try Resend (recommended for Vercel)
+  if (process.env.RESEND_API_KEY && html) {
+    return await sendEmailViaResend(to, subject, html);
+  }
+
+  // Fallback to SMTP if configured
   if (!process.env.SMTP_HOST || !process.env.SMTP_USER) {
-    console.log("⚠️ Email not configured");
+    console.log("⚠️ Email not configured (no RESEND_API_KEY or SMTP)");
     return false;
   }
 

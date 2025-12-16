@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import Link from "next/link";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -343,6 +343,8 @@ export default function BookingPage() {
   const [bookingComplete, setBookingComplete] = useState(false);
   const [bookingRef, setBookingRef] = useState("");
   const [aiMessage, setAiMessage] = useState("");
+  const [showNotification, setShowNotification] = useState(false);
+  const [hasSpoken, setHasSpoken] = useState(false);
 
   const availableDates = useMemo(() => getAvailableDates(), []);
 
@@ -366,6 +368,63 @@ export default function BookingPage() {
     });
     return groups;
   }, [filteredServices]);
+
+  // Voice Thank You Function
+  const speakThankYou = useCallback((customerName: string) => {
+    if (typeof window !== "undefined" && "speechSynthesis" in window && !hasSpoken) {
+      // Cancel any ongoing speech
+      window.speechSynthesis.cancel();
+      
+      const thankYouText = `Thank you so much ${customerName} for booking with The Beauty Bar Uganda! We are so excited to see you and give you the glow up you deserve. See you soon beautiful!`;
+      
+      const utterance = new SpeechSynthesisUtterance(thankYouText);
+      utterance.rate = 0.9; // Slightly slower for clarity
+      utterance.pitch = 1.1; // Slightly higher for friendliness
+      utterance.volume = 1;
+      
+      // Try to find a female English voice
+      const voices = window.speechSynthesis.getVoices();
+      const femaleVoice = voices.find(
+        (voice) => 
+          voice.lang.includes("en") && 
+          (voice.name.toLowerCase().includes("female") || 
+           voice.name.toLowerCase().includes("samantha") ||
+           voice.name.toLowerCase().includes("victoria") ||
+           voice.name.toLowerCase().includes("karen") ||
+           voice.name.toLowerCase().includes("zira"))
+      ) || voices.find((voice) => voice.lang.includes("en"));
+      
+      if (femaleVoice) {
+        utterance.voice = femaleVoice;
+      }
+      
+      window.speechSynthesis.speak(utterance);
+      setHasSpoken(true);
+    }
+  }, [hasSpoken]);
+
+  // Trigger voice thank you when booking is complete
+  useEffect(() => {
+    if (bookingComplete && formData.name && !hasSpoken) {
+      // Small delay to ensure the page has rendered
+      const timer = setTimeout(() => {
+        speakThankYou(formData.name);
+        setShowNotification(true);
+        
+        // Hide notification after 5 seconds
+        setTimeout(() => setShowNotification(false), 5000);
+      }, 500);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [bookingComplete, formData.name, hasSpoken, speakThankYou]);
+
+  // Load voices on mount (needed for some browsers)
+  useEffect(() => {
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      window.speechSynthesis.getVoices();
+    }
+  }, []);
 
   const handleSubmit = async () => {
     if (!selectedService || !selectedDate || !selectedTime || !formData.name || !formData.phone) {
@@ -419,6 +478,12 @@ export default function BookingPage() {
     setBookingComplete(false);
     setBookingRef("");
     setAiMessage("");
+    setHasSpoken(false);
+    setShowNotification(false);
+    // Stop any ongoing speech
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
   };
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -899,8 +964,43 @@ export default function BookingPage() {
   // Step 5: Confirmation with AI Thank You Message
   if (step === 5 || bookingComplete) {
     return (
-      <div className="mx-auto max-w-xl px-4 py-10 sm:px-6">
+      <div className="mx-auto max-w-xl px-4 py-10 sm:px-6 relative">
+        {/* Notification Popup */}
+        {showNotification && (
+          <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 animate-bounce">
+            <div className="bg-gradient-to-r from-gold to-gold/80 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3">
+              <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
+                <svg className="w-6 h-6 animate-pulse" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
+                </svg>
+              </div>
+              <div>
+                <p className="font-bold text-sm">🎀 Booking Confirmed!</p>
+                <p className="text-xs opacity-90">Email sent to you & Beauty Bar</p>
+              </div>
+              <button 
+                onClick={() => setShowNotification(false)}
+                className="ml-2 hover:bg-white/20 rounded-full p-1 transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="card text-center space-y-6">
+          {/* Voice Playing Indicator */}
+          <div className="absolute top-4 right-4">
+            <div className="bg-gold/10 text-gold px-3 py-1 rounded-full text-xs flex items-center gap-2">
+              <svg className="w-4 h-4 animate-pulse" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+              </svg>
+              <span>🎀 Playing thank you</span>
+            </div>
+          </div>
+
           {/* Success Animation */}
           <div className="w-20 h-20 mx-auto rounded-full bg-gradient-to-br from-gold/30 to-gold/10 flex items-center justify-center animate-pulse">
             <div className="w-16 h-16 rounded-full bg-gold/20 flex items-center justify-center">
