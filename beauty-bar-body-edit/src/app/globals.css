@@ -1,0 +1,54 @@
+@import "tailwindcss";
+
+:root {
+  --background: #fdf6e9; /* soft cream */
+  --foreground: #10223a; /* deep navy */
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-cream: #fdf6e9;
+  --color-cream-soft: #f9f0de;
+  --color-navy: #10223a;
+  --color-navy-soft: #233651;
+  --color-gold: #d9a64d;
+  --color-gold-soft: #f0c979;
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", sans-serif;
+}
+
+.pill {
+  @apply inline-flex items-center rounded-full bg-cream-soft px-3 py-1 text-xs font-medium tracking-[0.16em] uppercase text-navy;
+}
+
+.card {
+  @apply rounded-2xl border border-[#e0d3b8] bg-cream/80 px-4 py-5 shadow-sm sm:px-6;
+}
+
+.card-title {
+  @apply text-sm font-semibold tracking-[0.18em] text-navy/90 uppercase;
+}
+
+.field-label {
+  @apply text-xs font-medium tracking-[0.2em] text-navy/80 uppercase;
+}
+
+.field-input {
+  @apply w-full rounded-xl border border-[#e0d3b8] bg-cream-soft px-3 py-2 text-sm text-navy shadow-inner focus:border-gold focus:outline-none focus:ring-1 focus:ring-gold;
+}
+
+.primary-button {
+  @apply inline-flex w-full items-center justify-center rounded-full bg-navy px-5 py-2.5 text-sm font-semibold tracking-[0.16em] text-cream shadow-md transition-colors hover:bg-navy-soft disabled:cursor-not-allowed disabled:bg-navy/40;
+}
+
+.secondary-button {
+  @apply inline-flex w-full items-center justify-center rounded-full border border-navy/20 bg-transparent px-5 py-2.5 text-sm font-medium tracking-[0.16em] text-navy transition-colors hover:border-navy hover:bg-cream-soft;
+}
