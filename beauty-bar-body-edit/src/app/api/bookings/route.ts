@@ -47,7 +47,8 @@ const bookings: Booking[] = [];
 // ─────────────────────────────────────────────────────────────────────────────
 // BEAUTY BAR CONTACT INFO
 // ─────────────────────────────────────────────────────────────────────────────
-const OWNER_PHONE = "256700980021";
+// TESTING: Using 0700518006 - Change back to 256700980021 for production
+const OWNER_PHONE = "256700518006";
 const OWNER_EMAIL = "ndagirenairah@gmail.com";
 
 // ─────────────────────────────────────────────────────────────────────────────
