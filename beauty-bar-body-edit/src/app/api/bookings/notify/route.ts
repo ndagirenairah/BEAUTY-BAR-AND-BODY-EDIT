@@ -5,7 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 // Sends booking notifications to the Beauty Bar owner via WhatsApp
 // ─────────────────────────────────────────────────────────────────────────────
 
-const OWNER_PHONE = "256700980021"; // Your WhatsApp number
+const OWNER_PHONE = "256700980021"; // Your WhatsApp number +256 700 980021
 
 // CallMeBot API Key - Get yours FREE at https://www.callmebot.com/blog/free-api-whatsapp-messages/
 // Just send "I allow callmebot to send me messages" to +34 644 51 95 23 on WhatsApp
