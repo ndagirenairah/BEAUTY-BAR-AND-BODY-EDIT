@@ -52,6 +52,45 @@ const OWNER_PHONE = "256700518006";
 const OWNER_EMAIL = "ndagirenairah@gmail.com";
 
 // ─────────────────────────────────────────────────────────────────────────────
+// TELEGRAM NOTIFICATION (EASIEST METHOD!)
+// ─────────────────────────────────────────────────────────────────────────────
+async function sendTelegramNotification(message: string): Promise<boolean> {
+  const botToken = process.env.TELEGRAM_BOT_TOKEN;
+  const chatId = process.env.TELEGRAM_CHAT_ID;
+
+  if (!botToken || !chatId) {
+    console.log("⚠️ Telegram not configured (TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID missing)");
+    return false;
+  }
+
+  try {
+    const response = await fetch(
+      `https://api.telegram.org/bot${botToken}/sendMessage`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text: message,
+          parse_mode: "HTML",
+        }),
+      }
+    );
+
+    if (response.ok) {
+      console.log("✅ Telegram notification sent!");
+      return true;
+    } else {
+      console.log("⚠️ Telegram failed:", await response.text());
+      return false;
+    }
+  } catch (error) {
+    console.log("⚠️ Telegram error:", error);
+    return false;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // AI THANK YOU MESSAGES
 // ─────────────────────────────────────────────────────────────────────────────
 const thankYouMessages = [
@@ -234,6 +273,30 @@ ${body.notes ? `📝 Notes: ${body.notes}` : ""}
     console.log(ownerNotification);
     console.log("═".repeat(50) + "\n");
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // SEND TELEGRAM NOTIFICATION (INSTANT!)
+    // ─────────────────────────────────────────────────────────────────────────
+    const telegramMessage = `🎀 <b>NEW BOOKING!</b> 🎀
+
+📋 <b>Ref:</b> <code>${bookingRef}</code>
+
+👤 <b>Customer:</b>
+   ${customerName}
+   📞 ${customerPhone}
+   ${customerEmail ? `✉️ ${customerEmail}` : ""}
+
+💅 <b>Service:</b>
+   ${serviceName}
+   💰 UGX ${price.toLocaleString()}
+
+📅 <b>When:</b>
+   ${body.date || "TBD"} at ${body.time || "TBD"}
+${body.notes ? `\n📝 <b>Notes:</b> ${body.notes}` : ""}
+
+⏰ ${new Date().toLocaleString("en-UG", { timeZone: "Africa/Kampala" })}`;
+
+    const telegramSent = await sendTelegramNotification(telegramMessage);
+
     // Create WhatsApp link for owner to receive notification
     const ownerWhatsAppLink = createWhatsAppLink(OWNER_PHONE, ownerNotification);
 
@@ -378,6 +441,7 @@ Or use your booking reference: ${bookingRef}
       ownerWhatsAppLink,
       ownerEmailSent,
       customerEmailSent,
+      telegramSent,
       cancelInfo: `To cancel, contact WhatsApp: +256 700 980 021 with reference ${bookingRef}`,
       booking: {
         id: bookingRef,
@@ -499,7 +563,7 @@ export async function GET(request: NextRequest) {
   // ─────────────────────────────────────────────────────────────────────────
   // ADMIN: VIEW ALL BOOKINGS
   // ─────────────────────────────────────────────────────────────────────────
-  if (adminKey === process.env.ADMIN_KEY || adminKey === "beauty-bar-admin-2024") {
+  if (adminKey === process.env.ADMIN_KEY || adminKey === "admin_beautybar_2025") {
     return NextResponse.json({
       total: bookings.length,
       confirmed: bookings.filter((b) => b.status === "confirmed").length,
