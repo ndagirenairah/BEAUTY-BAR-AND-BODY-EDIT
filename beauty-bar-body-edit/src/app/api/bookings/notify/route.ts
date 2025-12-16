@@ -8,13 +8,14 @@ import { NextRequest, NextResponse } from "next/server";
 // TESTING: Using 0700518006 - Change back to 256700980021 for production
 const OWNER_PHONE = "256700518006"; // Test number +256 700 518006
 
-// CallMeBot API Key - Get yours FREE at https://www.callmebot.com/blog/free-api-whatsapp-messages/
-// Just send "I allow callmebot to send me messages" to +34 644 51 95 23 on WhatsApp
-// They'll reply with your API key
-const CALLMEBOT_API_KEY = process.env.CALLMEBOT_API_KEY || "";
+// TextMeBot API Key - Get yours FREE at https://textmebot.com
+// 1. Go to textmebot.com
+// 2. Enter your WhatsApp number
+// 3. They send you an API key via WhatsApp
+const TEXTMEBOT_API_KEY = process.env.TEXTMEBOT_API_KEY || "";
 
-// Alternative: Use WhatsApp Cloud API (Meta) - requires business account
-// Or use Twilio WhatsApp API
+// CallMeBot (backup - currently closed for new registrations until Jan 10)
+const CALLMEBOT_API_KEY = process.env.CALLMEBOT_API_KEY || "";
 
 type NotifyPayload = {
   bookingRef: string;
@@ -32,7 +33,40 @@ function formatPrice(price: number): string {
   return new Intl.NumberFormat("en-UG").format(price);
 }
 
-// Send WhatsApp message via CallMeBot (FREE)
+// Send WhatsApp message via TextMeBot (FREE - RECOMMENDED)
+async function sendWhatsAppViaTextMeBot(phone: string, message: string): Promise<boolean> {
+  if (!TEXTMEBOT_API_KEY) {
+    console.log("⚠️ TEXTMEBOT_API_KEY not configured");
+    return false;
+  }
+
+  try {
+    const response = await fetch("https://api.textmebot.com/send.php", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        recipient: phone,
+        apikey: TEXTMEBOT_API_KEY,
+        text: message,
+      }),
+    });
+    
+    if (response.ok) {
+      const result = await response.text();
+      if (result.includes("success") || result.includes("sent")) {
+        console.log(`✅ WhatsApp sent to ${phone} via TextMeBot`);
+        return true;
+      }
+    }
+    console.log("⚠️ TextMeBot response:", await response.text());
+    return false;
+  } catch (error) {
+    console.log("⚠️ TextMeBot error:", error);
+    return false;
+  }
+}
+
+// Send WhatsApp message via CallMeBot (backup)
 async function sendWhatsAppViaCallMeBot(phone: string, message: string): Promise<boolean> {
   if (!CALLMEBOT_API_KEY) {
     console.log("⚠️ CALLMEBOT_API_KEY not configured");
@@ -126,10 +160,15 @@ ${notes ? `\n📝 *Notes:* ${notes}` : ""}
 
 ✨ Tap to call: tel:${customerPhone}`;
 
-    // Try CallMeBot first (FREE)
-    let sent = await sendWhatsAppViaCallMeBot(OWNER_PHONE, notificationMessage);
+    // Try TextMeBot first (FREE - recommended)
+    let sent = await sendWhatsAppViaTextMeBot(OWNER_PHONE, notificationMessage);
 
-    // If CallMeBot fails, try WhatsApp Cloud API
+    // If TextMeBot fails, try CallMeBot
+    if (!sent) {
+      sent = await sendWhatsAppViaCallMeBot(OWNER_PHONE, notificationMessage);
+    }
+
+    // If both fail, try WhatsApp Cloud API
     if (!sent) {
       sent = await sendWhatsAppViaCloudAPI(OWNER_PHONE, notificationMessage);
     }
