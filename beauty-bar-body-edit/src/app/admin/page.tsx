@@ -108,6 +108,26 @@ export default function AdminBookingsPage() {
     );
   }
 
+  // Delete booking handler
+  const handleDelete = async (bookingId: string) => {
+    if (!window.confirm("Are you sure you want to delete this booking? This cannot be undone.")) return;
+    try {
+      const response = await fetch("/api/bookings", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bookingId, key: "admin_beautybar_2025" }),
+      });
+      if (response.ok) {
+        fetchBookings();
+      } else {
+        const data = await response.json();
+        alert(data.error || "Failed to delete booking.");
+      }
+    } catch (error) {
+      alert("Failed to delete booking.");
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-cream to-cream-soft">
       {/* Header */}
@@ -247,6 +267,12 @@ export default function AdminBookingsPage() {
                         >
                           Call
                         </a>
+                        <button
+                          onClick={() => handleDelete(booking.id)}
+                          className="bg-red-500 text-white px-3 py-2 rounded-lg text-xs font-medium hover:bg-red-600 transition-colors"
+                        >
+                          Delete
+                        </button>
                       </div>
                     </div>
                     {booking.notes && (

@@ -5,8 +5,5 @@
   "devCommand": "cd beauty-bar-body-edit && npm run dev",
   "installCommand": "cd beauty-bar-body-edit && npm install",
   "outputDirectory": "beauty-bar-body-edit/.next",
-  "regions": ["cdg1"],
-  "env": {
-    "NEXT_PUBLIC_SITE_URL": "https://beauty-bar-body-edit.vercel.app"
-  }
+  "regions": ["cdg1"]
 }
